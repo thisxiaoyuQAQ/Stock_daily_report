@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <title>股票每日分析报告</title>
+    <style>
+        :root {
+            --bg: #f4f6f8;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --text: #17202a;
+            --muted: #627084;
+            --line: #dce3ea;
+            --accent: #176b57;
+            --accent-soft: #e6f3ef;
+            --danger: #b5473c;
+            --shadow: 0 10px 28px rgba(25, 38, 52, 0.08);
+            --radius: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 280px minmax(0, 1fr);
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            padding: 24px 18px;
+            border-right: 1px solid var(--line);
+            background: var(--panel);
+        }
+
+        .brand {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 0 6px;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.25;
+            letter-spacing: 0;
+        }
+
+        .brand p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .date-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow: auto;
+            padding: 2px 6px 4px;
+        }
+
+        .date-button {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 11px 12px;
+            font: inherit;
+            text-align: left;
+            transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+        }
+
+        .date-button:hover {
+            border-color: #9db0c0;
+            background: var(--panel-soft);
+        }
+
+        .date-button[aria-current="true"] {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .date-button span:first-child {
+            white-space: nowrap;
+        }
+
+        .date-button span:last-child {
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .main {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            min-height: 70px;
+            padding: 14px 22px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+        }
+
+        .current {
+            min-width: 0;
+        }
+
+        .current .label {
+            display: block;
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 3px;
+        }
+
+        .current .date {
+            display: block;
+            font-size: 22px;
+            font-weight: 750;
+            line-height: 1.2;
+        }
+
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .date-select {
+            display: none;
+            min-width: 150px;
+            height: 38px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+            color: var(--text);
+            padding: 0 10px;
+            font: inherit;
+        }
+
+        .action-button {
+            height: 38px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+            color: var(--text);
+            cursor: pointer;
+            padding: 0 12px;
+            font: inherit;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .action-button:hover {
+            border-color: #9db0c0;
+            background: var(--panel-soft);
+        }
+
+        .action-button:disabled {
+            cursor: not-allowed;
+            color: #9aa5b1;
+            background: #eef2f5;
+            border-color: #e4e9ee;
+        }
+
+        .viewer-wrap {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            padding: 18px 22px 22px;
+        }
+
+        .viewer-shell {
+            height: calc(100vh - 110px);
+            min-height: 520px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .viewer {
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: var(--panel);
+        }
+
+        .loading {
+            position: absolute;
+            inset: 18px 22px 22px;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            color: var(--muted);
+            background: rgba(248, 250, 252, 0.72);
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.16s ease;
+        }
+
+        .loading.is-visible {
+            opacity: 1;
+        }
+
+        .empty {
+            margin: 32px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--panel);
+            color: var(--danger);
+            padding: 18px;
+        }
+
+        @media (max-width: 860px) {
+            .app {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .toolbar {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+                padding: 14px 16px;
+            }
+
+            .actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .date-select {
+                display: inline-flex;
+                flex: 1 1 160px;
+            }
+
+            .action-button {
+                flex: 0 0 auto;
+            }
+
+            .viewer-wrap {
+                padding: 12px;
+            }
+
+            .viewer-shell {
+                height: calc(100vh - 155px);
+                min-height: 480px;
+            }
+
+            .loading {
+                inset: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="app"></div>
+
+    <script>
+        const reports = [
+            { date: "2026-05-15", path: "2026-05-15/index.html" },
+            { date: "2026-05-14", path: "2026-05-14/index.html" },
+            { date: "2026-05-13", path: "2026-05-13/index.html" }
+        ];
+
+        const weekdayFormatter = new Intl.DateTimeFormat("zh-CN", { weekday: "short" });
+        const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit"
+        });
+
+        const app = document.querySelector("#app");
+        let activeIndex = getInitialIndex();
+
+        function getInitialIndex() {
+            const requestedDate = decodeURIComponent(location.hash.replace(/^#/, ""));
+            const hashIndex = reports.findIndex((report) => report.date === requestedDate);
+            return hashIndex >= 0 ? hashIndex : 0;
+        }
+
+        function formatDate(dateText) {
+            const date = new Date(`${dateText}T00:00:00+08:00`);
+            return `${dateFormatter.format(date)} ${weekdayFormatter.format(date)}`;
+        }
+
+        function render() {
+            if (!reports.length) {
+                app.className = "";
+                app.innerHTML = '<div class="empty">还没有可展示的日报，请先生成日期文件夹和 index.html。</div>';
+                return;
+            }
+
+            const active = reports[activeIndex];
+            app.innerHTML = `
+                <aside class="sidebar">
+                    <div class="brand">
+                        <h1>股票每日分析报告</h1>
+                        <p>共 ${reports.length} 份日报</p>
+                    </div>
+                    <nav class="date-list" aria-label="日报日期">
+                        ${reports.map((report, index) => `
+                            <button
+                                class="date-button"
+                                type="button"
+                                data-index="${index}"
+                                aria-current="${index === activeIndex}"
+                            >
+                                <span>${report.date}</span>
+                                <span>${formatDate(report.date).split(" ").pop()}</span>
+                            </button>
+                        `).join("")}
+                    </nav>
+                </aside>
+                <main class="main">
+                    <header class="toolbar">
+                        <div class="current">
+                            <span class="label">当前日报</span>
+                            <span class="date">${formatDate(active.date)}</span>
+                        </div>
+                        <div class="actions">
+                            <select class="date-select" aria-label="选择日报日期">
+                                ${reports.map((report, index) => `
+                                    <option value="${index}" ${index === activeIndex ? "selected" : ""}>${report.date}</option>
+                                `).join("")}
+                            </select>
+                            <button class="action-button" type="button" data-action="prev" title="上一份日报" ${activeIndex === reports.length - 1 ? "disabled" : ""}>‹ 上一份</button>
+                            <button class="action-button" type="button" data-action="next" title="下一份日报" ${activeIndex === 0 ? "disabled" : ""}>下一份 ›</button>
+                            <a class="action-button" href="${active.path}" target="_blank" rel="noopener">新窗口打开</a>
+                        </div>
+                    </header>
+                    <section class="viewer-wrap" aria-label="日报内容">
+                        <div class="viewer-shell">
+                            <iframe class="viewer" title="${active.date} 股票分析日报" src="${active.path}"></iframe>
+                        </div>
+                        <div class="loading is-visible">正在加载 ${active.date} 日报...</div>
+                    </section>
+                </main>
+            `;
+
+            bindEvents();
+            syncHash(active.date);
+            hideLoadingWhenReady();
+        }
+
+        function bindEvents() {
+            document.querySelectorAll(".date-button").forEach((button) => {
+                button.addEventListener("click", () => setActive(Number(button.dataset.index)));
+            });
+
+            const select = document.querySelector(".date-select");
+            select.addEventListener("change", () => setActive(Number(select.value)));
+
+            document.querySelector('[data-action="prev"]').addEventListener("click", () => {
+                if (activeIndex < reports.length - 1) {
+                    setActive(activeIndex + 1);
+                }
+            });
+
+            document.querySelector('[data-action="next"]').addEventListener("click", () => {
+                if (activeIndex > 0) {
+                    setActive(activeIndex - 1);
+                }
+            });
+        }
+
+        function setActive(index) {
+            if (index < 0 || index >= reports.length || index === activeIndex) {
+                return;
+            }
+
+            activeIndex = index;
+            render();
+        }
+
+        function syncHash(date) {
+            if (location.hash === `#${date}`) {
+                return;
+            }
+
+            history.replaceState(null, "", `#${date}`);
+        }
+
+        function hideLoadingWhenReady() {
+            const frame = document.querySelector(".viewer");
+            const loading = document.querySelector(".loading");
+            const fallback = window.setTimeout(() => loading.classList.remove("is-visible"), 900);
+
+            frame.addEventListener("load", () => {
+                window.clearTimeout(fallback);
+                loading.classList.remove("is-visible");
+            }, { once: true });
+        }
+
+        window.addEventListener("hashchange", () => {
+            const nextIndex = getInitialIndex();
+            if (nextIndex !== activeIndex) {
+                activeIndex = nextIndex;
+                render();
+            }
+        });
+
+        window.addEventListener("keydown", (event) => {
+            if (event.target && ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName)) {
+                return;
+            }
+
+            if (event.key === "ArrowLeft" && activeIndex < reports.length - 1) {
+                setActive(activeIndex + 1);
+            }
+
+            if (event.key === "ArrowRight" && activeIndex > 0) {
+                setActive(activeIndex - 1);
+            }
+        });
+
+        render();
+    </script>
+</body>
+</html>
