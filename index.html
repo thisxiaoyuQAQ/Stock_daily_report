@@ -301,11 +301,7 @@
     <div id="app" class="app"></div>
 
     <script>
-        const reports = [
-            { date: "2026-05-15", path: "2026-05-15/index.html" },
-            { date: "2026-05-14", path: "2026-05-14/index.html" },
-            { date: "2026-05-13", path: "2026-05-13/index.html" }
-        ];
+        const REPORT_LOOKBACK_DAYS = 120;
 
         const weekdayFormatter = new Intl.DateTimeFormat("zh-CN", { weekday: "short" });
         const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -315,7 +311,94 @@
         });
 
         const app = document.querySelector("#app");
-        let activeIndex = getInitialIndex();
+        let reports = [];
+        let activeIndex = 0;
+
+        async function loadReports() {
+            const manifestReports = await loadManifestReports();
+            const discoveredReports = await discoverRecentReports();
+            reports = normalizeReports([...manifestReports, ...discoveredReports]);
+            activeIndex = getInitialIndex();
+            render();
+        }
+
+        async function loadManifestReports() {
+            try {
+                const response = await fetch("reports.json", { cache: "no-store" });
+                if (!response.ok) {
+                    return [];
+                }
+
+                const data = await response.json();
+                return Array.isArray(data) ? data : data.reports || [];
+            } catch (error) {
+                return [];
+            }
+        }
+
+        async function discoverRecentReports() {
+            const candidates = getRecentDateCandidates(REPORT_LOOKBACK_DAYS);
+            const checks = candidates.map(async (date) => {
+                const path = `${date}/index.html`;
+                try {
+                    const response = await fetch(path, { method: "HEAD", cache: "no-store" });
+                    return response.ok ? { date, path } : null;
+                } catch (error) {
+                    return null;
+                }
+            });
+
+            return (await Promise.all(checks)).filter(Boolean);
+        }
+
+        function getRecentDateCandidates(days) {
+            const dates = [];
+            const current = getShanghaiToday();
+
+            for (let offset = 0; offset < days; offset += 1) {
+                const date = new Date(current);
+                date.setDate(current.getDate() - offset);
+                dates.push(formatDateKey(date));
+            }
+
+            return dates;
+        }
+
+        function getShanghaiToday() {
+            const parts = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "Asia/Shanghai",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }).formatToParts(new Date());
+            const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+
+            return new Date(Number(values.year), Number(values.month) - 1, Number(values.day));
+        }
+
+        function formatDateKey(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        }
+
+        function normalizeReports(items) {
+            const reportMap = new Map();
+
+            items.forEach((item) => {
+                if (!item || !/^\d{4}-\d{2}-\d{2}$/.test(item.date)) {
+                    return;
+                }
+
+                reportMap.set(item.date, {
+                    date: item.date,
+                    path: item.path || `${item.date}/index.html`
+                });
+            });
+
+            return Array.from(reportMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+        }
 
         function getInitialIndex() {
             const requestedDate = decodeURIComponent(location.hash.replace(/^#/, ""));
@@ -458,7 +541,7 @@
             }
         });
 
-        render();
+        loadReports();
     </script>
 </body>
 </html>
